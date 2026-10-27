@@ -567,10 +567,6 @@ function ensureQuoted(text) {
     return '"' + text + '"';
 }
 
-// Proxy CORS pour contourner la restriction de navigateur
-const CORS_PROXY = 'https://corsproxy.io/?';
-const AGNES_BASE_URL = 'https://apihub.agnes-ai.com/v1';
-
 const EXEMPLES = {
     pilote: "Un pilote dans un cockpit futuriste, lumières bleues, concentration.",
     detective: "Un détective dans une ruelle nocturne, pluie, néons rouges, marche lente, tension.",
@@ -653,7 +649,7 @@ uploadArea.addEventListener('drop', function(e) {
 });
 
 // ============================================================
-// 4. ANALYSE IMAGE (avec proxy CORS)
+// 4. ANALYSE IMAGE (avec l'API Agnes AI)
 // ============================================================
 analyzeBtn.addEventListener('click', async function() {
     const apiKey = getApiKey();
@@ -678,10 +674,7 @@ analyzeBtn.addEventListener('click', async function() {
 - Any notable expression or action
 Use a single paragraph in English, concise but detailed. This description will be used as a visual memory for generating video prompts.`;
 
-        const targetUrl = AGNES_BASE_URL + '/chat/completions';
-        const proxyUrl = CORS_PROXY + encodeURIComponent(targetUrl);
-
-        const response = await fetch(proxyUrl, {
+        const response = await fetch('https://api.agnes-ai.com/v1/chat/completions', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
             body: JSON.stringify({
@@ -855,7 +848,7 @@ ${memoryBlock}
 - ${scenesCount} scenes of ${durationPerScene}s each.
 ${context}
 
-RESPONSABILITÉS :
+RESPONSIBILITÉS :
 1. Crée un SEGMENT COMPLET : scénario, mise en scène, photographie, musique, dialogues, sons, prompt PixVerse.
 2. Write each scene with : action, camera, dialogue (with tonalité), sound.
 3. Pour chaque dialogue, APPLIQUER LA RÈGLE 72.
@@ -1005,7 +998,7 @@ window.applyDialogueFromTable = function(segNum, sceneIndex, inputId) {
 };
 
 // ============================================================
-// 7. APPEL AGNES AI (avec proxy CORS et Règle 77 + langue)
+// 7. APPEL AGNES AI (avec Règle 77 + langue)
 // ============================================================
 async function callAgnes(prompt) {
     const apiKey = getApiKey();
@@ -1041,10 +1034,7 @@ IMPORTANT - SÉPARATION DES DIALOGUES :
 
 RÉPONDS UNIQUEMENT EN JSON AVEC LA STRUCTURE DEMANDÉE.`;
 
-    const targetUrl = AGNES_BASE_URL + '/chat/completions';
-    const proxyUrl = CORS_PROXY + encodeURIComponent(targetUrl);
-
-    const response = await fetch(proxyUrl, {
+    const response = await fetch('https://api.agnes-ai.com/v1/chat/completions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
         body: JSON.stringify({
