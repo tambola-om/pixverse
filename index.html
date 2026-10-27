@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🎬 Réalisateur IA – PixVerse V6</title>
+    <title>🎬 Réalisateur IA – PixVerse V6 (Gemini)</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
@@ -357,7 +357,7 @@
 <div class="container">
     <h1>
         🎬 RÉALISATEUR IA
-        <small>Spielberg · Cameron · Nolan · Deakins · Williams · Kahn</small>
+        <small>Spielberg · Cameron · Nolan · Deakins · Williams · Kahn · Gemini</small>
     </h1>
 
     <div class="banner">
@@ -369,10 +369,10 @@
     </div>
 
     <div class="api-row">
-        🔑 <strong>Clé API Agnes AI :</strong>
-        <input type="password" id="apiKey" value="sk-hqc7qOFvgxFA8n9ZNkAU7ixkYI9u63vNAyfnZT81N5psC0G6" placeholder="Votre clé API Agnes AI">
+        🔑 <strong>Clé API Gemini :</strong>
+        <input type="password" id="apiKey" placeholder="Collez votre clé API Google AI Studio">
         <span style="font-size:0.75rem; color:#64748b;">(stockée localement)</span>
-        <span class="badge">🎬 RÉALISATEUR COMPLET</span>
+        <span class="badge">🎬 GEMINI 3.8 FLASH</span>
     </div>
 
     <div class="upload-area" id="uploadArea">
@@ -414,7 +414,7 @@
             <li><strong>Règle 69</strong> — Image‑to‑Video : NE PAS décrire le personnage si une image est fournie (sauf vêtements).</li>
             <li><strong>Règle 70</strong> — Tir et détonation : isoler le tir dans une phrase séparée.</li>
             <li><strong>Règle 71</strong> — Tir UNIQUEMENT sur instruction explicite : <em>"NO shot. Finger off trigger."</em></li>
-            <li><strong>Règle 72</strong> — Synchro labiale : Mistral décide du nombre de dialogues. Caméra stable, lèvres visibles.</li>
+            <li><strong>Règle 72</strong> — Synchro labiale : Gemini décide du nombre de dialogues. Caméra stable, lèvres visibles.</li>
             <li><strong>Règle 73</strong> — Continuité ultra‑précise : <em>"resume_fin"</em> décrit la dernière image.</li>
             <li><strong>Règle 75</strong> — Description complète des vêtements dans le resume_fin (même les parties invisibles).</li>
             <li><strong>Règle 77</strong> — INTERDICTION DES GROS PLANS. Utiliser UNIQUEMENT : medium shot, wide shot, full shot.</li>
@@ -567,6 +567,10 @@ function ensureQuoted(text) {
     return '"' + text + '"';
 }
 
+// Gemini API - Point de terminaison pour generateContent
+// Modèle : gemini-3.8-flash (disponible en gratuit)
+const GEMINI_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent';
+
 const EXEMPLES = {
     pilote: "Un pilote dans un cockpit futuriste, lumières bleues, concentration.",
     detective: "Un détective dans une ruelle nocturne, pluie, néons rouges, marche lente, tension.",
@@ -649,12 +653,12 @@ uploadArea.addEventListener('drop', function(e) {
 });
 
 // ============================================================
-// 4. ANALYSE IMAGE (avec l'API Agnes AI)
+// 4. ANALYSE IMAGE (avec Gemini)
 // ============================================================
 analyzeBtn.addEventListener('click', async function() {
     const apiKey = getApiKey();
     if (!apiKey) {
-        statusDiv.innerHTML = '<div class="status error">❌ Veuillez entrer votre clé API Agnes AI.</div>';
+        statusDiv.innerHTML = '<div class="status error">❌ Veuillez entrer votre clé API Gemini.</div>';
         return;
     }
     if (!uploadedImageData) {
@@ -674,20 +678,29 @@ analyzeBtn.addEventListener('click', async function() {
 - Any notable expression or action
 Use a single paragraph in English, concise but detailed. This description will be used as a visual memory for generating video prompts.`;
 
-        const response = await fetch('https://api.agnes-ai.com/v1/chat/completions', {
+        // Extraire le base64 sans le préfixe data:image/...;base64,
+        const base64Data = uploadedImageData.split(',')[1];
+        const mimeType = uploadedImageData.split(';')[0].split(':')[1];
+
+        const response = await fetch(GEMINI_BASE_URL + '?key=' + encodeURIComponent(apiKey), {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                model: 'agnes-3.0-flash',
-                messages: [{ 
-                    role: 'user', 
-                    content: [
-                        { type: 'text', text: visionPrompt }, 
-                        { type: 'image_url', image_url: { url: uploadedImageData } }
-                    ] 
+                contents: [{
+                    parts: [
+                        { text: visionPrompt },
+                        {
+                            inline_data: {
+                                mime_type: mimeType,
+                                data: base64Data
+                            }
+                        }
+                    ]
                 }],
-                temperature: 0.5,
-                max_tokens: 500
+                generationConfig: {
+                    temperature: 0.5,
+                    maxOutputTokens: 500
+                }
             })
         });
 
@@ -696,7 +709,13 @@ Use a single paragraph in English, concise but detailed. This description will b
             throw new Error('Erreur API (' + response.status + ') : ' + errText);
         }
         const data = await response.json();
-        imageDescription = data.choices[0].message.content.trim();
+
+        // Extraire le texte de la réponse Gemini
+        const textContent = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (!textContent) {
+            throw new Error('Réponse vide ou format inattendu.');
+        }
+        imageDescription = textContent.trim();
 
         memoryText.textContent = imageDescription;
         memoryDisplay.style.display = 'block';
@@ -767,7 +786,7 @@ ${imageRule}
 - Le segment suivant doit reprendre ces vêtements pour le personnage.
 
 ⚠️ RÈGLE 72 – SYNCHRO LABIALE (libre et créative) :
-- Mistral décide combien de dialogues sont nécessaires pour le segment.
+- Gemini décide combien de dialogues sont nécessaires pour le segment.
 - Chaque dialogue doit être audible et synchronisé avec le mouvement des lèvres.
 - La caméra doit être STABLE pendant le dialogue.
 - Les lèvres doivent être VISIBLES dans le cadre.
@@ -848,7 +867,7 @@ ${memoryBlock}
 - ${scenesCount} scenes of ${durationPerScene}s each.
 ${context}
 
-RESPONSIBILITÉS :
+RESPONSABILITÉS :
 1. Crée un SEGMENT COMPLET : scénario, mise en scène, photographie, musique, dialogues, sons, prompt PixVerse.
 2. Write each scene with : action, camera, dialogue (with tonalité), sound.
 3. Pour chaque dialogue, APPLIQUER LA RÈGLE 72.
@@ -998,11 +1017,11 @@ window.applyDialogueFromTable = function(segNum, sceneIndex, inputId) {
 };
 
 // ============================================================
-// 7. APPEL AGNES AI (avec Règle 77 + langue)
+// 7. APPEL GEMINI (avec Règle 77 + langue)
 // ============================================================
-async function callAgnes(prompt) {
+async function callGemini(prompt) {
     const apiKey = getApiKey();
-    if (!apiKey) throw new Error('Clé API Agnes AI manquante.');
+    if (!apiKey) throw new Error('Clé API Gemini manquante.');
 
     const SYSTEM_PROMPT = `Tu es un réalisateur de cinéma universel — Spielberg + Cameron + Nolan + Deakins + Williams + Kahn.
 
@@ -1034,25 +1053,35 @@ IMPORTANT - SÉPARATION DES DIALOGUES :
 
 RÉPONDS UNIQUEMENT EN JSON AVEC LA STRUCTURE DEMANDÉE.`;
 
-    const response = await fetch('https://api.agnes-ai.com/v1/chat/completions', {
+    // Gemini utilise "contents" et non "messages"
+    // Le system prompt est fusionné avec le prompt utilisateur
+    const fullPrompt = SYSTEM_PROMPT + '\n\n---\n\n' + prompt;
+
+    const response = await fetch(GEMINI_BASE_URL + '?key=' + encodeURIComponent(apiKey), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-            model: 'agnes-3.0-flash',
-            messages: [
-                { role: 'system', content: SYSTEM_PROMPT },
-                { role: 'user', content: prompt }
-            ],
-            temperature: 0.7,
-            response_format: { type: 'json_object' }
+            contents: [{
+                parts: [{ text: fullPrompt }]
+            }],
+            generationConfig: {
+                temperature: 0.7,
+                responseMimeType: 'application/json'
+            }
         })
     });
+
     if (!response.ok) {
         const errText = await response.text();
         throw new Error('Erreur API (' + response.status + ') : ' + errText);
     }
     const data = await response.json();
-    return JSON.parse(data.choices[0].message.content);
+
+    const textContent = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!textContent) {
+        throw new Error('Réponse vide ou format inattendu.');
+    }
+    return JSON.parse(textContent);
 }
 
 function copyPvPrompt(elId) {
@@ -1084,7 +1113,7 @@ function renderSegment(data) {
     html += '<span class="credit-badge">🔊 ' + getAudioMode() + '</span>';
     html += '<span class="credit-badge">💰 ' + totalCost + ' crédits</span>';
     html += '<span class="credit-badge">📋 ' + getScenesPerSegment() + ' scènes</span>';
-    html += '<span class="credit-badge gold">🎬 UNIVERSEL</span>';
+    html += '<span class="credit-badge gold">🎬 GEMINI</span>';
     if (imageDescription) {
         html += '<span class="credit-badge" style="border-color:#22c55e;color:#86efac;">📸 RÈGLE 69</span>';
     }
@@ -1123,15 +1152,11 @@ function renderSegment(data) {
 
     let pvPrompt = data.prompt_pixverse || '';
 
-    // ============================================================
-    // NORMALISATION 1 : Guillemets français → guillemets droits (pour le prompt final)
-    // ============================================================
+    // NORMALISATION 1 : Guillemets français → guillemets droits
     pvPrompt = pvPrompt.replace(/[«»]/g, '"');
     pvPrompt = pvPrompt.replace(/'/g, '"');
 
-    // ============================================================
     // NORMALISATION 2 : Suppression des close-ups (Règle 77)
-    // ============================================================
     const closeUpPatterns = [
         /close-up/gi,
         /extreme close-up/gi,
@@ -1144,13 +1169,11 @@ function renderSegment(data) {
         pvPrompt = pvPrompt.replace(pattern, 'medium shot');
     });
 
-    // Vérification finale : si "close-up" persiste, le remplacer par "medium shot"
     if (pvPrompt.includes('close-up') || pvPrompt.includes('gros plan')) {
         pvPrompt = pvPrompt.replace(/close-up/gi, 'medium shot');
         pvPrompt = pvPrompt.replace(/gros plan/gi, 'medium shot');
     }
 
-    // Vérification : s'assurer qu'il y a bien un plan (wide, medium, full)
     if (!pvPrompt.includes('medium shot') && !pvPrompt.includes('wide shot') && !pvPrompt.includes('full shot')) {
         pvPrompt = pvPrompt.replace(/([.!?])\s*/, '$1 Medium shot, ');
     }
@@ -1168,9 +1191,7 @@ function renderSegment(data) {
     html += '<div class="flex"><button class="btn btn-primary btn-sm" onclick="copyPvPrompt(\'' + promptBoxId + '\')">📋 Copier</button>';
     html += '<span style="font-size:0.75rem; color:' + charColor + ';">' + charCount + ' / 1500</span></div></div>';
 
-    // ============================================================
-    // TABLEAU AVEC DIALOGUES AFFICHÉS EN « » (comme avant)
-    // ============================================================
+    // TABLEAU AVEC DIALOGUES AFFICHÉS EN « »
     html += '<table class="storyboard-table"><thead><tr>';
     html += '<th>SCÈNE</th><th>ACTION</th><th>CAMÉRA</th><th>DIALOGUE (1 par scène max)</th><th>SON</th><th>DURÉE</th>';
     html += '</tr></thead><tbody>';
@@ -1182,7 +1203,6 @@ function renderSegment(data) {
             const dialog = scene.dialogue || '';
             const hasDialog = dialog && dialog.trim().length > 0;
             let dialogToShow = hasDialog ? dialog : (dialoguesFromPrompt[index] || '');
-            // Si le dialogue est en anglais, on le laisse (l'utilisateur le modifiera)
             const inputId = 'dialogue-' + segNum + '-' + index;
 
             html += '<tr>';
@@ -1247,7 +1267,7 @@ function renderSegment(data) {
 // ============================================================
 async function generateSegment(segmentNumber, total, idea, style, scenesCount, totalDuration, previousSummary, dialogLang, motionMode, audioMode, location, imageDesc) {
     const prompt = buildPrompt(segmentNumber, total, idea, style, scenesCount, totalDuration, previousSummary, dialogLang, motionMode, audioMode, location, imageDesc);
-    return await callAgnes(prompt);
+    return await callGemini(prompt);
 }
 
 async function generateAll() {
@@ -1352,14 +1372,9 @@ generateBtn.addEventListener('click', generateAll);
 nextBtn.addEventListener('click', generateNext);
 
 window.addEventListener('load', function() {
-    const savedKey = localStorage.getItem('mistral_api_key');
-    if (savedKey) {
-        apiKeyInput.value = savedKey;
-    } else {
-        // Si pas de clé sauvegardée, on met celle par défaut
-        apiKeyInput.value = 'sk-hqc7qOFvgxFA8n9ZNkAU7ixkYI9u63vNAyfnZT81N5psC0G6';
-    }
-    apiKeyInput.addEventListener('change', function() { localStorage.setItem('mistral_api_key', apiKeyInput.value); });
+    const savedKey = localStorage.getItem('gemini_api_key');
+    if (savedKey) apiKeyInput.value = savedKey;
+    apiKeyInput.addEventListener('change', function() { localStorage.setItem('gemini_api_key', apiKeyInput.value); });
     totalSegments = getTotalSegments();
 });
 
