@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🎬 Réalisateur IA – PixVerse V6 (Gemini)</title>
+    <title>🎬 Réalisateur IA – PixVerse V6 (OpenRouter)</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
@@ -357,7 +357,7 @@
 <div class="container">
     <h1>
         🎬 RÉALISATEUR IA
-        <small>Spielberg · Cameron · Nolan · Deakins · Williams · Kahn · Gemini</small>
+        <small>Spielberg · Cameron · Nolan · Deakins · Williams · Kahn · OpenRouter</small>
     </h1>
 
     <div class="banner">
@@ -369,10 +369,10 @@
     </div>
 
     <div class="api-row">
-        🔑 <strong>Clé API Gemini :</strong>
-        <input type="password" id="apiKey" placeholder="Collez votre clé API Google AI Studio">
+        🔑 <strong>Clé API OpenRouter :</strong>
+        <input type="password" id="apiKey" placeholder="Collez votre clé API OpenRouter">
         <span style="font-size:0.75rem; color:#64748b;">(stockée localement)</span>
-        <span class="badge">🎬 GEMINI 3.8 FLASH</span>
+        <span class="badge">🎬 LLAMA 3.3 70B FREE</span>
     </div>
 
     <div class="upload-area" id="uploadArea">
@@ -414,7 +414,7 @@
             <li><strong>Règle 69</strong> — Image‑to‑Video : NE PAS décrire le personnage si une image est fournie (sauf vêtements).</li>
             <li><strong>Règle 70</strong> — Tir et détonation : isoler le tir dans une phrase séparée.</li>
             <li><strong>Règle 71</strong> — Tir UNIQUEMENT sur instruction explicite : <em>"NO shot. Finger off trigger."</em></li>
-            <li><strong>Règle 72</strong> — Synchro labiale : Gemini décide du nombre de dialogues. Caméra stable, lèvres visibles.</li>
+            <li><strong>Règle 72</strong> — Synchro labiale : OpenRouter décide du nombre de dialogues. Caméra stable, lèvres visibles.</li>
             <li><strong>Règle 73</strong> — Continuité ultra‑précise : <em>"resume_fin"</em> décrit la dernière image.</li>
             <li><strong>Règle 75</strong> — Description complète des vêtements dans le resume_fin (même les parties invisibles).</li>
             <li><strong>Règle 77</strong> — INTERDICTION DES GROS PLANS. Utiliser UNIQUEMENT : medium shot, wide shot, full shot.</li>
@@ -567,9 +567,10 @@ function ensureQuoted(text) {
     return '"' + text + '"';
 }
 
-// Gemini API - Point de terminaison pour generateContent
-// Modèle : gemini-3.8-flash (disponible en gratuit)
-const GEMINI_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent';
+// OpenRouter API - compatible OpenAI
+const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1/chat/completions';
+const OPENROUTER_MODEL = 'meta-llama/llama-3.3-70b-instruct:free';
+
 const EXEMPLES = {
     pilote: "Un pilote dans un cockpit futuriste, lumières bleues, concentration.",
     detective: "Un détective dans une ruelle nocturne, pluie, néons rouges, marche lente, tension.",
@@ -652,12 +653,12 @@ uploadArea.addEventListener('drop', function(e) {
 });
 
 // ============================================================
-// 4. ANALYSE IMAGE (avec Gemini)
+// 4. ANALYSE IMAGE (avec OpenRouter)
 // ============================================================
 analyzeBtn.addEventListener('click', async function() {
     const apiKey = getApiKey();
     if (!apiKey) {
-        statusDiv.innerHTML = '<div class="status error">❌ Veuillez entrer votre clé API Gemini.</div>';
+        statusDiv.innerHTML = '<div class="status error">❌ Veuillez entrer votre clé API OpenRouter.</div>';
         return;
     }
     if (!uploadedImageData) {
@@ -677,29 +678,25 @@ analyzeBtn.addEventListener('click', async function() {
 - Any notable expression or action
 Use a single paragraph in English, concise but detailed. This description will be used as a visual memory for generating video prompts.`;
 
-        // Extraire le base64 sans le préfixe data:image/...;base64,
-        const base64Data = uploadedImageData.split(',')[1];
-        const mimeType = uploadedImageData.split(';')[0].split(':')[1];
-
-        const response = await fetch(GEMINI_BASE_URL + '?key=' + encodeURIComponent(apiKey), {
+        const response = await fetch(OPENROUTER_BASE_URL, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Authorization': 'Bearer ' + apiKey,
+                'Content-Type': 'application/json',
+                'HTTP-Referer': window.location.origin,
+                'X-Title': 'Réalisateur IA'
+            },
             body: JSON.stringify({
-                contents: [{
-                    parts: [
-                        { text: visionPrompt },
-                        {
-                            inline_data: {
-                                mime_type: mimeType,
-                                data: base64Data
-                            }
-                        }
+                model: OPENROUTER_MODEL,
+                messages: [{
+                    role: 'user',
+                    content: [
+                        { type: 'text', text: visionPrompt },
+                        { type: 'image_url', image_url: { url: uploadedImageData } }
                     ]
                 }],
-                generationConfig: {
-                    temperature: 0.5,
-                    maxOutputTokens: 500
-                }
+                temperature: 0.5,
+                max_tokens: 500
             })
         });
 
@@ -708,9 +705,7 @@ Use a single paragraph in English, concise but detailed. This description will b
             throw new Error('Erreur API (' + response.status + ') : ' + errText);
         }
         const data = await response.json();
-
-        // Extraire le texte de la réponse Gemini
-        const textContent = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        const textContent = data.choices?.[0]?.message?.content;
         if (!textContent) {
             throw new Error('Réponse vide ou format inattendu.');
         }
@@ -785,7 +780,7 @@ ${imageRule}
 - Le segment suivant doit reprendre ces vêtements pour le personnage.
 
 ⚠️ RÈGLE 72 – SYNCHRO LABIALE (libre et créative) :
-- Gemini décide combien de dialogues sont nécessaires pour le segment.
+- OpenRouter décide combien de dialogues sont nécessaires pour le segment.
 - Chaque dialogue doit être audible et synchronisé avec le mouvement des lèvres.
 - La caméra doit être STABLE pendant le dialogue.
 - Les lèvres doivent être VISIBLES dans le cadre.
@@ -1016,11 +1011,11 @@ window.applyDialogueFromTable = function(segNum, sceneIndex, inputId) {
 };
 
 // ============================================================
-// 7. APPEL GEMINI (avec Règle 77 + langue)
+// 7. APPEL OPENROUTER
 // ============================================================
-async function callGemini(prompt) {
+async function callOpenRouter(prompt) {
     const apiKey = getApiKey();
-    if (!apiKey) throw new Error('Clé API Gemini manquante.');
+    if (!apiKey) throw new Error('Clé API OpenRouter manquante.');
 
     const SYSTEM_PROMPT = `Tu es un réalisateur de cinéma universel — Spielberg + Cameron + Nolan + Deakins + Williams + Kahn.
 
@@ -1052,21 +1047,21 @@ IMPORTANT - SÉPARATION DES DIALOGUES :
 
 RÉPONDS UNIQUEMENT EN JSON AVEC LA STRUCTURE DEMANDÉE.`;
 
-    // Gemini utilise "contents" et non "messages"
-    // Le system prompt est fusionné avec le prompt utilisateur
-    const fullPrompt = SYSTEM_PROMPT + '\n\n---\n\n' + prompt;
-
-    const response = await fetch(GEMINI_BASE_URL + '?key=' + encodeURIComponent(apiKey), {
+    const response = await fetch(OPENROUTER_BASE_URL, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+            'Authorization': 'Bearer ' + apiKey,
+            'Content-Type': 'application/json',
+            'HTTP-Referer': window.location.origin,
+            'X-Title': 'Réalisateur IA'
+        },
         body: JSON.stringify({
-            contents: [{
-                parts: [{ text: fullPrompt }]
-            }],
-            generationConfig: {
-                temperature: 0.7,
-                responseMimeType: 'application/json'
-            }
+            model: OPENROUTER_MODEL,
+            messages: [
+                { role: 'system', content: SYSTEM_PROMPT },
+                { role: 'user', content: prompt }
+            ],
+            temperature: 0.7
         })
     });
 
@@ -1075,12 +1070,14 @@ RÉPONDS UNIQUEMENT EN JSON AVEC LA STRUCTURE DEMANDÉE.`;
         throw new Error('Erreur API (' + response.status + ') : ' + errText);
     }
     const data = await response.json();
-
-    const textContent = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!textContent) {
+    const content = data.choices?.[0]?.message?.content;
+    if (!content) {
         throw new Error('Réponse vide ou format inattendu.');
     }
-    return JSON.parse(textContent);
+
+    // Nettoyer les éventuels backticks Markdown autour du JSON
+    const jsonContent = content.replace(/```json\s*|```\s*/g, '').trim();
+    return JSON.parse(jsonContent);
 }
 
 function copyPvPrompt(elId) {
@@ -1112,7 +1109,7 @@ function renderSegment(data) {
     html += '<span class="credit-badge">🔊 ' + getAudioMode() + '</span>';
     html += '<span class="credit-badge">💰 ' + totalCost + ' crédits</span>';
     html += '<span class="credit-badge">📋 ' + getScenesPerSegment() + ' scènes</span>';
-    html += '<span class="credit-badge gold">🎬 GEMINI</span>';
+    html += '<span class="credit-badge gold">🎬 OPENROUTER</span>';
     if (imageDescription) {
         html += '<span class="credit-badge" style="border-color:#22c55e;color:#86efac;">📸 RÈGLE 69</span>';
     }
@@ -1266,7 +1263,7 @@ function renderSegment(data) {
 // ============================================================
 async function generateSegment(segmentNumber, total, idea, style, scenesCount, totalDuration, previousSummary, dialogLang, motionMode, audioMode, location, imageDesc) {
     const prompt = buildPrompt(segmentNumber, total, idea, style, scenesCount, totalDuration, previousSummary, dialogLang, motionMode, audioMode, location, imageDesc);
-    return await callGemini(prompt);
+    return await callOpenRouter(prompt);
 }
 
 async function generateAll() {
@@ -1371,9 +1368,9 @@ generateBtn.addEventListener('click', generateAll);
 nextBtn.addEventListener('click', generateNext);
 
 window.addEventListener('load', function() {
-    const savedKey = localStorage.getItem('gemini_api_key');
+    const savedKey = localStorage.getItem('openrouter_api_key');
     if (savedKey) apiKeyInput.value = savedKey;
-    apiKeyInput.addEventListener('change', function() { localStorage.setItem('gemini_api_key', apiKeyInput.value); });
+    apiKeyInput.addEventListener('change', function() { localStorage.setItem('openrouter_api_key', apiKeyInput.value); });
     totalSegments = getTotalSegments();
 });
 
